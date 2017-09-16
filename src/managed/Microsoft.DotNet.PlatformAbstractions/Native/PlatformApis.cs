@@ -85,6 +85,8 @@ namespace Microsoft.DotNet.PlatformAbstractions.Native
 
         private static DistroInfo LoadDistroInfo()
         {
+            DistroInfo result = null;
+
             // Sample os-release file:
             //   NAME="Ubuntu"
             //   VERSION = "14.04.3 LTS, Trusty Tahr"
@@ -100,7 +102,7 @@ namespace Microsoft.DotNet.PlatformAbstractions.Native
             if (File.Exists("/etc/os-release"))
             {
                 var lines = File.ReadAllLines("/etc/os-release");
-                var result = new DistroInfo();
+                result = new DistroInfo();
                 foreach (var line in lines)
                 {
                     if (line.StartsWith("ID=", StringComparison.Ordinal))
@@ -112,10 +114,30 @@ namespace Microsoft.DotNet.PlatformAbstractions.Native
                         result.VersionId = line.Substring(11).Trim('"', '\'');
                     }
                 }
-
-                return NormalizeDistroInfo(result);
             }
-            return null;
+            else if (File.Exists("/etc/redhat-release"))
+            {
+                var lines = File.ReadAllLines("/etc/redhat-release");
+
+                if (lines.Length >= 1)
+                {
+                    string line = lines[0];
+                    if (line.StartsWith("Red Hat Enterprise Linux Server release 6.") ||
+                        line.StartsWith("CentOS release 6."))
+                    {
+                        result = new DistroInfo();
+                        result.Id = "rhel";
+                        result.VersionId = "6";
+                    }
+                }
+            }
+
+            if (result != null)
+            {
+                result = NormalizeDistroInfo(result);
+            }
+            
+            return result;
         }
 
         // For some distros, we don't want to use the full version from VERSION_ID. One example is
@@ -129,11 +151,17 @@ namespace Microsoft.DotNet.PlatformAbstractions.Native
         private static DistroInfo NormalizeDistroInfo(DistroInfo distroInfo)
         {
             // Handle if VersionId is null by just setting the index to -1.
-            int minorVersionNumberSeparatorIndex = distroInfo.VersionId?.IndexOf('.') ?? -1;
+            int lastVersionNumberSeparatorIndex = distroInfo.VersionId?.IndexOf('.') ?? -1;
 
-            if (distroInfo.Id == "rhel" && minorVersionNumberSeparatorIndex != -1)
+            if (lastVersionNumberSeparatorIndex != -1 && distroInfo.Id == "alpine")
             {
-                distroInfo.VersionId = distroInfo.VersionId.Substring(0, minorVersionNumberSeparatorIndex);
+                // For Alpine, the version reported has three components, so we need to find the second version separator
+                lastVersionNumberSeparatorIndex = distroInfo.VersionId.IndexOf('.', lastVersionNumberSeparatorIndex + 1);
+            }
+
+            if (lastVersionNumberSeparatorIndex != -1 && (distroInfo.Id == "rhel" || distroInfo.Id == "alpine"))
+            {
+                distroInfo.VersionId = distroInfo.VersionId.Substring(0, lastVersionNumberSeparatorIndex);
             }
 
             return distroInfo;

@@ -182,28 +182,6 @@ bool is_executable(const pal::string_t& file_path)
     return ((st.st_mode & S_IEXEC) != 0);
 }
 
-bool pal::get_local_dotnet_dir(pal::string_t* recv)
-{
-    recv->clear();
-    pal::string_t dir;
-    if (!pal::getenv("HOME", &dir))
-    {
-        struct passwd* pw = getpwuid(getuid());
-        if (pw && pw->pw_dir)
-        {
-            dir.assign(pw->pw_dir);
-        }
-    }
-    if (dir.empty())
-    {
-        return false;
-    }
-    append_path(&dir, _X(".dotnet"));
-    append_path(&dir, get_arch());
-    recv->assign(dir);
-    return true;
-}
-
  bool pal::get_global_dotnet_dirs(std::vector<pal::string_t>* recv)
 {
     // No support for global directories in Unix.
@@ -279,14 +257,25 @@ static
 pal::string_t normalize_linux_rid(pal::string_t rid)
 {
     pal::string_t rhelPrefix(_X("rhel."));
+    pal::string_t alpinePrefix(_X("alpine."));
+    size_t lastVersionSeparatorIndex = std::string::npos;
 
     if (rid.compare(0, rhelPrefix.length(), rhelPrefix) == 0)
     {
-        size_t minorVersionSeparatorIndex = rid.find(_X("."), rhelPrefix.length());
-        if (minorVersionSeparatorIndex != std::string::npos)
+        lastVersionSeparatorIndex = rid.find(_X("."), rhelPrefix.length());
+    }
+    else if (rid.compare(0, alpinePrefix.length(), alpinePrefix) == 0)
+    {
+        size_t secondVersionSeparatorIndex = rid.find(_X("."), alpinePrefix.length());
+        if (secondVersionSeparatorIndex != std::string::npos)
         {
-            rid.erase(minorVersionSeparatorIndex, rid.length() - minorVersionSeparatorIndex);
+            lastVersionSeparatorIndex = rid.find(_X("."), secondVersionSeparatorIndex + 1);
         }
+    }
+
+    if (lastVersionSeparatorIndex != std::string::npos)
+    {
+        rid.erase(lastVersionSeparatorIndex, rid.length() - lastVersionSeparatorIndex);
     }
 
     return rid;
@@ -296,6 +285,7 @@ pal::string_t pal::get_current_os_rid_platform()
 {
     pal::string_t ridOS;
     pal::string_t versionFile(_X("/etc/os-release"));
+    pal::string_t rhelVersionFile(_X("/etc/redhat-release"));
 
     if (pal::file_exists(versionFile))
     {
@@ -374,6 +364,35 @@ pal::string_t pal::get_current_os_rid_platform()
                 ridOS = trim_quotes(ridOS);
             }
         }
+    }
+    else if (pal::file_exists(rhelVersionFile))
+    {
+        // Read the file to check if the current OS is RHEL or CentOS 6.x
+        std::fstream fsVersionFile;
+        
+        fsVersionFile.open(rhelVersionFile, std::fstream::in);
+
+        // Proceed only if we were able to open the file
+        if (fsVersionFile.good())
+        {
+            pal::string_t line;
+            // Read the first line
+            std::getline(fsVersionFile, line);
+
+            if (!fsVersionFile.eof())
+            {
+                pal::string_t rhel6Prefix(_X("Red Hat Enterprise Linux Server release 6."));
+                pal::string_t centos6Prefix(_X("CentOS release 6."));
+
+                if ((line.find(rhel6Prefix) == 0) || (line.find(centos6Prefix) == 0))
+                {
+                    ridOS = _X("rhel.6");
+                }
+            }
+
+            // Close the file now that we are done with it.
+            fsVersionFile.close();
+        }        
     }
 
     return normalize_linux_rid(ridOS);
@@ -484,7 +503,7 @@ bool pal::file_exists(const pal::string_t& path)
     return (::stat(path.c_str(), &buffer) == 0);
 }
 
-void pal::readdir(const string_t& path, const string_t& pattern, std::vector<pal::string_t>* list)
+static void readdir(const pal::string_t& path, const pal::string_t& pattern, bool onlydirectories, std::vector<pal::string_t>* list)
 {
     assert(list != nullptr);
 
@@ -505,7 +524,13 @@ void pal::readdir(const string_t& path, const string_t& pattern, std::vector<pal
             switch (entry->d_type)
             {
             case DT_DIR:
+                break;
+
             case DT_REG:
+                if (onlydirectories)
+                {
+                    continue;
+                }
                 break;
 
             // Handle symlinks and file systems that do not support d_type
@@ -524,7 +549,15 @@ void pal::readdir(const string_t& path, const string_t& pattern, std::vector<pal
                         continue;
                     }
 
-                    if (!S_ISREG(sb.st_mode) && !S_ISDIR(sb.st_mode))
+                    if (onlydirectories)
+                    {
+                        if (!S_ISDIR(sb.st_mode))
+                        {
+                            continue;
+                        }
+                        break;
+                    }
+                    else if (!S_ISREG(sb.st_mode) && !S_ISDIR(sb.st_mode))
                     {
                         continue;
                     }
@@ -535,12 +568,31 @@ void pal::readdir(const string_t& path, const string_t& pattern, std::vector<pal
                 continue;
             }
 
-            files.push_back(pal::string_t(entry->d_name));
+            pal::string_t filepath(entry->d_name);
+            if (filepath != _X(".") && filepath != _X(".."))
+            {
+                files.push_back(filepath);
+            }
         }
     }
 }
 
+void pal::readdir(const string_t& path, const string_t& pattern, std::vector<pal::string_t>* list)
+{
+    ::readdir(path, pattern, false, list);
+}
+
 void pal::readdir(const pal::string_t& path, std::vector<pal::string_t>* list)
 {
-    readdir(path, _X("*"), list);
+    ::readdir(path, _X("*"), false, list);
+}
+
+void pal::readdir_onlydirectories(const pal::string_t& path, const string_t& pattern, std::vector<pal::string_t>* list)
+{
+    ::readdir(path, pattern, true, list);
+}
+
+void pal::readdir_onlydirectories(const pal::string_t& path, std::vector<pal::string_t>* list)
+{
+    ::readdir(path, _X("*"), true, list);
 }

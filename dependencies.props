@@ -9,22 +9,25 @@
        These ref versions are pulled from https://github.com/dotnet/versions.
   -->
   <PropertyGroup>
-    <CoreFxCurrentRef>f0d3d6a8cf007b7f07f9e404b9eefe1ab3f72c08</CoreFxCurrentRef>
-    <CoreClrCurrentRef>f0d3d6a8cf007b7f07f9e404b9eefe1ab3f72c08</CoreClrCurrentRef>
-    <StandardCurrentRef>f0d3d6a8cf007b7f07f9e404b9eefe1ab3f72c08</StandardCurrentRef>
-    <WCFCurrentRef>f0d3d6a8cf007b7f07f9e404b9eefe1ab3f72c08</WCFCurrentRef>
+    <CoreFxCurrentRef>6766c5441c51425204c21dc61498dc5f2db09020</CoreFxCurrentRef>
+    <CoreClrCurrentRef>7c9d6c202b9ef64072a36f34b0ad2380e4dda30e</CoreClrCurrentRef>
+    <StandardCurrentRef>7ad3a5fba96f1ad3032fe742bee5069b5167beca</StandardCurrentRef>
+    <WCFCurrentRef>7c9d6c202b9ef64072a36f34b0ad2380e4dda30e</WCFCurrentRef>
+    <BuildToolsCurrentRef>7c9d6c202b9ef64072a36f34b0ad2380e4dda30e</BuildToolsCurrentRef>
   </PropertyGroup>
-  
+
   <PropertyGroup>
-    <CoreFxVersion>4.5.0-preview2-25707-01</CoreFxVersion>
-    <PlatformPackageVersion>2.1.0-preview2-25707-01</PlatformPackageVersion>
-    <MicrosoftNETCoreRuntimeCoreCLRPackageVersion>2.1.0-dev-di-25707-02</MicrosoftNETCoreRuntimeCoreCLRPackageVersion>
+    <MicrosoftPrivateCoreFxNETCoreAppPackageVersion>4.5.0-preview1-25712-02</MicrosoftPrivateCoreFxNETCoreAppPackageVersion>
+    <MicrosoftPrivateCoreFxUAPPackageVersion>4.6.0-preview1-25712-02</MicrosoftPrivateCoreFxUAPPackageVersion>
+    <PlatformPackageVersion>2.1.0-preview1-25712-02</PlatformPackageVersion>
+    <MicrosoftNETCoreRuntimeCoreCLRPackageVersion>2.1.0-preview1-25715-02</MicrosoftNETCoreRuntimeCoreCLRPackageVersion>
     <MicrosoftNETCoreRuntimeJitPackageVersion>$(MicrosoftNETCoreRuntimeCoreCLRPackageVersion)</MicrosoftNETCoreRuntimeJitPackageVersion>
-    <NETStandardVersion>2.1.0-preview1-25706-01</NETStandardVersion>
+    <MicrosoftNetNativeCompilerPackageVersion>2.0.0-preview-25524-00</MicrosoftNetNativeCompilerPackageVersion>
+    <NETStandardVersion>2.1.0-preview1-25714-01</NETStandardVersion>
     <DiaSymReaderNativeVersion>1.4.1</DiaSymReaderNativeVersion>
-    <WcfVersion>4.5.0-preview2-25707-01</WcfVersion>
+    <WcfVersion>4.5.0-preview2-25715-01</WcfVersion>
   </PropertyGroup>
-  
+
   <!-- Package dependency verification/auto-upgrade configuration. -->
   <PropertyGroup>
     <BaseDotNetBuildInfo>build-info/dotnet/</BaseDotNetBuildInfo>
@@ -35,7 +38,7 @@
 
   <ItemGroup>
     <RemoteDependencyBuildInfo Include="CoreFx">
-      <BuildInfoPath>$(BaseDotNetBuildInfo)corefx/$(DependencyBranch)</BuildInfoPath>
+      <BuildInfoPath>$(BaseDotNetBuildInfo)corefx/$(DefaultIntfDependencyBranch)</BuildInfoPath>
       <CurrentRef>$(CoreFxCurrentRef)</CurrentRef>
     </RemoteDependencyBuildInfo>
     <RemoteDependencyBuildInfo Include="CoreClr">
@@ -50,15 +53,24 @@
       <BuildInfoPath>$(BaseDotNetBuildInfo)wcf/$(DependencyBranch)</BuildInfoPath>
       <CurrentRef>$(WCFCurrentRef)</CurrentRef>
     </RemoteDependencyBuildInfo>
+    <RemoteDependencyBuildInfo Include="BuildTools">
+      <BuildInfoPath>$(BaseDotNetBuildInfo)buildtools/$(DependencyBranch)</BuildInfoPath>
+      <CurrentRef>$(BuildToolsCurrentRef)</CurrentRef>
+    </RemoteDependencyBuildInfo>
 
     <DependencyBuildInfo Include="@(RemoteDependencyBuildInfo)">
       <RawVersionsBaseUrl>https://raw.githubusercontent.com/dotnet/versions</RawVersionsBaseUrl>
     </DependencyBuildInfo>
-    
+
     <XmlUpdateStep Include="CoreFx">
       <Path>$(MSBuildThisFileFullPath)</Path>
-      <ElementName>CoreFxVersion</ElementName>
+      <ElementName>MicrosoftPrivateCoreFxNETCoreAppPackageVersion</ElementName>
       <PackageId>Microsoft.Private.CoreFx.NETCoreApp</PackageId>
+    </XmlUpdateStep>
+    <XmlUpdateStep Include="CoreFx">
+      <Path>$(MSBuildThisFileFullPath)</Path>
+      <ElementName>MicrosoftPrivateCoreFxUAPPackageVersion</ElementName>
+      <PackageId>Microsoft.Private.CoreFx.UAP</PackageId>
     </XmlUpdateStep>
     <XmlUpdateStep Include="CoreFx">
       <Path>$(MSBuildThisFileFullPath)</Path>
@@ -80,5 +92,10 @@
       <ElementName>WcfVersion</ElementName>
       <PackageId>System.ServiceModel.Duplex</PackageId>
     </XmlUpdateStep>
+    <UpdateStep Include="BuildTools">
+      <UpdaterType>File</UpdaterType>
+      <Path>$(RepoRoot)BuildToolsVersion.txt</Path>
+      <PackageId>Microsoft.DotNet.BuildTools</PackageId>
+    </UpdateStep>
   </ItemGroup>
 </Project>
